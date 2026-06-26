@@ -1,0 +1,247 @@
+from pathlib import Path
+
+html = r"""<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<title>VMG Lebensrad</title>
+<style>
+:root{
+  --bg:#080b12;--card:#111827;--card2:#172033;--text:#f9fafb;--muted:#a7b0c0;
+  --line:#2b354a;--green:#22c55e;--yellow:#facc15;--orange:#f97316;--red:#ef4444;--blue:#38bdf8;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  background:radial-gradient(circle at top,#1f2937 0%,#080b12 58%);
+  color:var(--text);
+  padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);
+}
+.app{max-width:780px;margin:0 auto;padding:12px 0 28px}
+header,.card{
+  background:linear-gradient(180deg,rgba(23,32,51,.98),rgba(10,15,25,.98));
+  border:1px solid var(--line);
+  border-radius:24px;
+  box-shadow:0 14px 32px rgba(0,0,0,.32);
+  margin-bottom:12px;
+  overflow:hidden;
+}
+header{text-align:center;padding:20px 16px}
+h1{font-size:32px;margin:0 0 6px;line-height:1.05}
+.subtitle{color:var(--muted);font-size:15px}
+.badge{display:inline-block;margin-top:10px;background:#0f766e;color:white;border-radius:999px;padding:7px 12px;font-weight:900;font-size:13px}
+.row{
+  display:grid;
+  grid-template-columns:38px 1fr 48px;
+  gap:9px;
+  align-items:center;
+  padding:11px 12px;
+  border-bottom:1px solid var(--line);
+}
+.row:last-child{border-bottom:none}
+.icon{font-size:24px;text-align:center;width:38px}
+label{font-size:15px;font-weight:800;display:block;margin-bottom:8px}
+input[type=range]{width:100%;accent-color:var(--blue)}
+.value{font-size:19px;font-weight:950;text-align:right}
+.red{color:var(--red)}.orange{color:var(--orange)}.yellow{color:var(--yellow)}.green{color:var(--green)}
+canvas{
+  width:100%;height:auto;display:block;margin:0 auto;
+  background:#0b1220;border-radius:20px;border:1px solid var(--line);
+}
+.chart-wrap{padding:12px}
+.legend{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:10px 12px 14px;font-size:13px;color:#d1d5db}
+.pill{display:inline-flex;align-items:center;gap:6px;background:#111827;border:1px solid var(--line);border-radius:999px;padding:7px 9px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.summary,.tips{padding:14px}
+.box,.alarm{
+  border-radius:18px;padding:14px;margin-bottom:10px;line-height:1.45;border:1px solid var(--line)
+}
+.good{background:rgba(34,197,94,.16);border-color:rgba(34,197,94,.45);color:#dcfce7}
+.mid{background:rgba(250,204,21,.13);border-color:rgba(250,204,21,.40);color:#fef9c3}
+.alarm{background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.48);color:#fee2e2}
+h2{margin:0 0 8px;font-size:19px}
+ul{margin:8px 0 0 18px;padding:0}
+li{margin:6px 0}
+.tip{border-top:1px solid var(--line);padding:12px 0;line-height:1.38}
+.tip:first-of-type{border-top:none}
+.tip-title{font-weight:950;margin-bottom:4px}
+.tip-score{font-weight:950;border-radius:999px;padding:2px 8px;font-size:13px;margin-left:4px;background:#111827}
+.buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px}
+button{
+  border:0;border-radius:17px;padding:14px 12px;font-size:16px;font-weight:950;
+  background:linear-gradient(90deg,#0ea5e9,#22c55e);color:white;cursor:pointer
+}
+button.secondary{background:#263244;color:#f9fafb}
+.small{font-size:12px;color:var(--muted);padding:0 14px 14px;line-height:1.35}
+@media(max-width:480px){
+  h1{font-size:27px}.row{grid-template-columns:34px 1fr 42px;padding:10px}.icon{font-size:22px;width:34px}
+  label{font-size:14px}.value{font-size:18px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>VMG Rad der Legenden</h1>
+    <div class="subtitle">Bewertung von 1 „Katastrophe“ bis 10 „Clubhaus-Legende“</div>
+    <div class="badge">🍻 Humor-Modus · nicht zu ernst nehmen</div>
+  </header>
+
+  <section class="card" id="controls"></section>
+
+  <section class="card chart-wrap">
+    <canvas id="radar" width="900" height="900"></canvas>
+    <div class="legend">
+      <span class="pill"><span class="dot" style="background:#ef4444"></span>1–2 roter Bereich</span>
+      <span class="pill"><span class="dot" style="background:#f97316"></span>3 kritisch</span>
+      <span class="pill"><span class="dot" style="background:#facc15"></span>4–6 ausbaufähig</span>
+      <span class="pill"><span class="dot" style="background:#22c55e"></span>7–10 läuft</span>
+    </div>
+  </section>
+
+  <section class="card summary" id="summary"></section>
+  <section class="card tips" id="tips"></section>
+
+  <section class="card buttons">
+    <button class="secondary" onclick="resetValues()">Zurücksetzen</button>
+    <button onclick="saveImage()">Radar speichern</button>
+  </section>
+  <div class="small">Hinweis: Spaß-App für VMG-Runden. Keine Verkehrs-, Alkohol- oder Beziehungsempfehlung. Schnellfahren nur legal und sicher auf dafür vorgesehenen Strecken.</div>
+</div>
+
+<script>
+const factors=[
+ {icon:"🚗",name:"Cooles Auto vorhanden",value:8,low:"Sofortmaßnahme: Kleinanzeigen öffnen. Projektfahrzeug suchen. Hauptsache Charakter.",mid:"Noch nicht Legende. Felgen, Fahrwerk oder Klassiker-Upgrade prüfen.",high:"Stabil. Auto nicht verkaufen, nur emotional weiter optimieren."},
+ {icon:"🏍️",name:"Motorrad-Faktor",value:7,low:"Problem erkannt: Probefahrt organisieren oder alten Helm entstauben.",mid:"Mehr Zweiradzeit einplanen. Kurze Runde zählt auch.",high:"Sehr gut. Kette schmieren, Tank voll, Leben gut."},
+ {icon:"🚲",name:"Mountainbike-Faktor",value:8,low:"Alarm: Reifen aufpumpen und in den Wald. Direkt.",mid:"Mehr Trail, weniger Ausrede. Eine Runde pro Woche reicht als Start.",high:"Top. Dreck am Rad ist Statussymbol."},
+ {icon:"💸",name:"Kohle für Party & Urlaub",value:7,low:"Kohle fehlt? Budget checken. Oder günstiger feiern, aber nicht weniger.",mid:"Urlaubskasse und Spaßkasse trennen. Dann tut Party weniger weh.",high:"Perfekt. Genug Kohle für Eskalation und Erholung."},
+ {icon:"🍻",name:"Saufbereitschaft der Truppe",value:6,low:"VMG-Alarm: Entweder mehr trinken oder bessere Ausreden erfinden.",mid:"Solide, aber ausbaufähig. Kaltgetränke-Logistik verbessern.",high:"Legendenstatus. Kühlung sichern und Pegel verantwortungsvoll halten."},
+ {icon:"🎉",name:"Party-Eskalationslevel",value:7,low:"Musik an, Leute einladen, Grill starten. Nicht totplanen.",mid:"Ein Motto hilft: 80er, Rennsport, Garagenparty oder Bad Taste.",high:"Sehr gut. Bitte Beweisfotos nur kontrolliert verbreiten."},
+ {icon:"🏁",name:"Schon mal gefahren km/h",value:8,low:"Unter 200? Roter Bereich. Fahrsicherheitstraining oder Trackday als Ziel setzen.",mid:"200–249: ordentlich, aber da geht noch was auf abgesperrter Strecke.",high:"Ab 250 grün. Du darfst am Stammtisch kurz nicken."},
+ {icon:"🧯",name:"Stresslevel mit Alltag",value:5,low:"Problem? Entweder mehr Auszeit, mehr Garage oder mehr Kaltgetränk.",mid:"Alltag nervt. Einen Abend freischaufeln und Handy weg.",high:"Läuft. Du hast den Alltag aktuell im Griff."},
+ {icon:"👵",name:"Nerv-Faktor Zuhause",value:6,low:"Roter Bereich: Gespräch statt Flucht. Danach Garage, Sport oder Runde drehen.",mid:"Ausbaufähig: klare Absprachen, Humor behalten, nicht alles kommentieren.",high:"Entspannt. Zuhause ist kein Gegner, sondern Boxenstopp."},
+ {icon:"🎂",name:"Alters-Kompatibilität Partnerin/Partner",value:7,low:"Unter 18 ist absolutes No-Go. Sonst gilt: Respekt, Reife und Augenhöhe.",mid:"Ab 40: Klassiker-Alarm – kann sehr stabil sein, aber nicht meckern.",high:"Passt. Hauptsache erwachsen, freiwillig, respektvoll und humorvoll."},
+ {icon:"🧰",name:"Schrauberkompetenz",value:7,low:"Werkzeug kaufen, YouTube aus, selbst versuchen. Kleine Reparatur starten.",mid:"Öl, Bremsen, Kette, Reifen: Basics festigen.",high:"Sehr gut. Du bist offiziell Garagenpersonal."},
+ {icon:"🛞",name:"Reifen- & Felgenstatus",value:8,low:"Katastrophe. Reifen prüfen, Luftdruck, Profil, Felgenwürde wiederherstellen.",mid:"Okay, aber optisch geht mehr. Felgenpflege oder Upgrade.",high:"Stark. Felgen sauber, Ehre sauber."},
+ {icon:"🔥",name:"Grill- & Clubhausfaktor",value:8,low:"Grill an. Sofort. Ohne Grill keine Kultur.",mid:"Mehr Würstchen, bessere Musik, weniger Diskussion.",high:"Legende. Du darfst den Grill nicht mehr unbeaufsichtigt lassen."},
+ {icon:"🧭",name:"Abenteuer & Urlaub",value:6,low:"Alarm: Termin blocken. Wochenendtrip, Alpen, Trackday oder MTB-Urlaub.",mid:"Plan ist da, Umsetzung fehlt. Datum festlegen.",high:"Top. Erinnerungen schlagen Sofa."},
+ {icon:"😎",name:"Gesamt-Coolness",value:8,low:"Sonnenbrille auf, Auto suchen, Freunde anrufen. Neustart.",mid:"Potenzial vorhanden. Mehr Mut zur Geschichte.",high:"Du bist stabil unterwegs. VMG-kompatibel."}
+];
+
+const controls=document.getElementById("controls"),summary=document.getElementById("summary"),tips=document.getElementById("tips"),canvas=document.getElementById("radar"),ctx=canvas.getContext("2d");
+
+function cls(v){return v<=2?"red":v===3?"orange":v<=6?"yellow":"green"}
+function buildControls(){
+ controls.innerHTML="";
+ factors.forEach((f,i)=>{
+  const row=document.createElement("div");
+  row.className="row";
+  row.innerHTML=`<div class="icon">${f.icon}</div><div><label>${i+1}. ${f.name}</label><input type="range" min="1" max="10" value="${f.value}" data-i="${i}"></div><div class="value ${cls(f.value)}" id="val${i}">${f.value}</div>`;
+  controls.appendChild(row);
+ });
+ document.querySelectorAll("input[type=range]").forEach(s=>s.addEventListener("input",e=>{
+  const i=+e.target.dataset.i;
+  factors[i].value=+e.target.value;
+  const v=document.getElementById("val"+i);
+  v.textContent=factors[i].value;
+  v.className="value "+cls(factors[i].value);
+  update();
+ }));
+}
+function zone(cx,cy,r,n,color){
+ ctx.beginPath();
+ for(let i=0;i<n;i++){
+  const a=-Math.PI/2+i*2*Math.PI/n,x=cx+Math.cos(a)*r,y=cy+Math.sin(a)*r;
+  if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+ }
+ ctx.closePath();ctx.fillStyle=color;ctx.fill();
+}
+function wrap(text,x,y,maxWidth,lineHeight){
+ const words=text.split(" ");let line="",lines=[];
+ for(let n=0;n<words.length;n++){
+  const test=line+words[n]+" ";
+  if(ctx.measureText(test).width>maxWidth&&n>0){lines.push(line.trim());line=words[n]+" "}else line=test;
+ }
+ lines.push(line.trim());
+ const start=y-((lines.length-1)*lineHeight)/2;
+ lines.forEach((l,idx)=>ctx.fillText(l,x,start+idx*lineHeight));
+}
+function drawRadar(){
+ const w=canvas.width,h=canvas.height,cx=w/2,cy=h/2,r=Math.min(w,h)*.31,n=factors.length;
+ ctx.clearRect(0,0,w,h);
+ ctx.fillStyle="#0b1220";ctx.fillRect(0,0,w,h);
+
+ zone(cx,cy,r,n,"rgba(34,197,94,.20)");
+ zone(cx,cy,r*.6,n,"rgba(250,204,21,.22)");
+ zone(cx,cy,r*.3,n,"rgba(249,115,22,.26)");
+ zone(cx,cy,r*.2,n,"rgba(239,68,68,.34)");
+
+ for(let level=1;level<=10;level++){
+  ctx.beginPath();
+  for(let i=0;i<n;i++){
+   const a=-Math.PI/2+i*2*Math.PI/n,rr=r*level/10,x=cx+Math.cos(a)*rr,y=cy+Math.sin(a)*rr;
+   if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+  ctx.strokeStyle=level===10?"#475569":"#273449";ctx.lineWidth=level===10?2:1;ctx.stroke();
+ }
+ for(let i=0;i<n;i++){
+  const a=-Math.PI/2+i*2*Math.PI/n;
+  ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);ctx.strokeStyle="#273449";ctx.stroke();
+  const lx=cx+Math.cos(a)*(r+97),ly=cy+Math.sin(a)*(r+97);
+  ctx.fillStyle="#e5e7eb";ctx.font="700 21px -apple-system,BlinkMacSystemFont,Segoe UI,Arial";
+  ctx.textAlign=lx<cx-20?"right":lx>cx+20?"left":"center";ctx.textBaseline="middle";
+  wrap(`${i+1}. ${factors[i].name}`,lx,ly,130,25);
+ }
+
+ ctx.beginPath();
+ factors.forEach((f,i)=>{
+  const a=-Math.PI/2+i*2*Math.PI/n,rr=r*f.value/10,x=cx+Math.cos(a)*rr,y=cy+Math.sin(a)*rr;
+  if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+ });
+ ctx.closePath();ctx.fillStyle="rgba(56,189,248,.22)";ctx.strokeStyle="#22c55e";ctx.lineWidth=5;ctx.fill();ctx.stroke();
+
+ factors.forEach((f,i)=>{
+  const a=-Math.PI/2+i*2*Math.PI/n,rr=r*f.value/10,x=cx+Math.cos(a)*rr,y=cy+Math.sin(a)*rr;
+  ctx.beginPath();ctx.arc(x,y,9,0,Math.PI*2);ctx.fillStyle="#0b1220";ctx.fill();ctx.lineWidth=4;
+  ctx.strokeStyle=f.value<=2?"#ef4444":f.value===3?"#f97316":f.value<=6?"#facc15":"#22c55e";ctx.stroke();
+  ctx.fillStyle=ctx.strokeStyle;ctx.font="900 24px -apple-system,BlinkMacSystemFont,Segoe UI,Arial";ctx.textAlign="center";
+  ctx.fillText(f.value,x+Math.cos(a)*29,y+Math.sin(a)*29);
+ });
+ ctx.fillStyle="#cbd5e1";ctx.font="800 18px -apple-system,BlinkMacSystemFont,Segoe UI,Arial";ctx.textAlign="center";
+ for(let level=1;level<=10;level++)ctx.fillText(String(level),cx-18,cy-r*level/10+6);
+}
+function updateSummary(){
+ const avg=factors.reduce((s,f)=>s+f.value,0)/factors.length;
+ const low=factors.filter(f=>f.value<=3);
+ let html=avg>7
+  ? `<div class="box good">🏆 Durchschnitt: ${avg.toFixed(1)} von 10 – VMG-Legendenstatus. Du hast ein ziemlich cooles Leben.</div>`
+  : `<div class="box mid">📊 Durchschnitt: ${avg.toFixed(1)} von 10 – da ist noch Luft nach oben. Mehr Garage, mehr Freunde, mehr Abenteuer.</div>`;
+ if(low.length){
+  html+=`<div class="alarm"><h2>🚨 Problemzone</h2><div>VMG-Regel: Bei Problem muss entweder mehr gesoffen werden, ein cooles Auto gekauft werden – oder beides wird zumindest diskutiert.</div><ul>`;
+  low.forEach(f=>html+=`<li><strong>${f.name}:</strong> Wert ${f.value}. ${f.value<=2?f.low:f.mid}</li>`);
+  html+=`</ul></div>`;
+ }
+ summary.innerHTML=html;
+}
+function updateTips(){
+ tips.innerHTML=`<h2>💡 VMG-Tipps je Bereich</h2>`+factors.map(f=>{
+  const c=cls(f.value),tip=f.value<=2?f.low:f.value===3?f.mid:f.value<=6?f.mid:f.high;
+  return `<div class="tip"><div class="tip-title">${f.icon} ${f.name} <span class="tip-score ${c}">${f.value}/10</span></div><div>${tip}</div></div>`;
+ }).join("");
+}
+function update(){drawRadar();updateSummary();updateTips()}
+function resetValues(){[8,7,8,7,6,7,8,5,6,7,7,8,8,6,8].forEach((v,i)=>factors[i].value=v);buildControls();update()}
+function saveImage(){const link=document.createElement("a");link.download="vmg-rad-der-legenden.png";link.href=canvas.toDataURL("image/png");link.click()}
+buildControls();update();
+</script>
+</body>
+</html>
+"""
+
+path = Path("/mnt/data/vmg_rad_der_legenden_iphone.html")
+path.write_text(html, encoding="utf-8")
+print(path)
